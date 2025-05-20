@@ -1,0 +1,3 @@
+[submodule "lib/aho_corasick"]
+	path = lib/aho_corasick
+	url = https://github.com/cjgdev/aho_corasick.git
