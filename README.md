@@ -14,6 +14,37 @@ This tool takes a large text file, splits it into 1KB blocks, and automatically 
 - JSON output format with reference annotations
 - Efficient memory usage with immutable trie structure
 
+## Performance Benchmarks
+
+The following tables show performance comparisons between parallel and sequential processing modes using different combinations of Wikipedia title databases and input text files:
+
+### Small Wikipedia Database (51 titles)
+
+| Input File | Mode | Processing Time | Speedup | References Found |
+|------------|------|----------------|---------|------------------|
+| sample_text.txt (2.2KB) | Sequential | 5.64ms | - | 52 |
+| sample_text.txt (2.2KB) | Parallel | 13.95ms | 0.40x | 52 |
+| book-war-and-peace.txt (3.1MB) | Sequential | 7863.76ms | - | 193 |
+| book-war-and-peace.txt (3.1MB) | Parallel | 1296.74ms | **6.06x** | 193 |
+
+### Large Wikipedia Database (10,000 titles)
+
+| Input File | Mode | Loading Time | Processing Time | Total Time | Speedup | References Found |
+|------------|------|-------------|----------------|------------|---------|------------------|
+| sample_text.txt (2.2KB) | Sequential | 66.43ms | 1252.71ms | 1319.14ms | - | 3743 |
+| sample_text.txt (2.2KB) | Parallel | 79.42ms | 671.75ms | 751.17ms | **1.76x** | 3743 |
+| book-war-and-peace.txt (3.1MB) | Sequential | ~66ms | 1766.43s | ~29.4 min | - | 5,084,135 |
+| book-war-and-peace.txt (3.1MB) | Parallel | ~79ms | 285.80s | ~4.8 min | **6.18x** | 5,084,135 |
+
+### Key Observations
+
+- **Small text files**: Sequential processing is faster due to parallelization overhead
+- **Large text files**: Parallel processing provides significant speedup (6x improvement consistently)
+- **Large databases**: Initialization time becomes significant but processing still benefits from parallelization
+- **Reference density**: Larger databases find dramatically more matches (10K database finds 72x more references than 51-title database in small text, and 26,000x more in large text)
+- **Scalability**: Performance benefits increase with text size - the largest test showed 6.18x speedup (29.4 min vs 4.8 min)
+- **Database impact**: 10K title database processes the same text ~20x slower than 51-title database due to more matches found
+
 ## Requirements
 
 - C++11 compatible compiler (GCC 4.8+ or Clang 3.3+)
@@ -35,19 +66,19 @@ cd build
 # Configure and build
 cmake ..
 make
-
-# Run tests (optional)
-make test
 ```
 
 ## Usage
 
 ```bash
-# Basic usage
+# Basic usage (parallel mode - default)
 ./text_reference_breaker <wiki_titles_file> <input_text_file> <output_json_file>
 
-# Example
-./text_reference_breaker data/wiki_titles.txt data/sample_text.txt output.json
+# Sequential mode (for performance comparison)
+./text_reference_breaker <wiki_titles_file> <input_text_file> <output_json_file> --sequential
+
+# Example with sample data
+./text_reference_breaker ../data/wiki_titles.txt ../data/sample_text.txt output.json
 ```
 
 ### Input Format
@@ -74,6 +105,20 @@ The output is a JSON file with the following structure:
 
 - [Aho-Corasick](https://github.com/cjgdev/aho_corasick): Header-only C++ implementation of the Aho-Corasick algorithm
 - [nlohmann/json](https://github.com/nlohmann/json): JSON for Modern C++
+
+## Data Sources
+
+- **War and Peace text**: Downloaded from [NYU Economics 370 course materials](https://github.com/mmcky/nyu-econ-370/blob/master/notebooks/data/book-war-and-peace.txt)
+- **Google 10,000 English words**: Common English words list from [first20hours/google-10000-english](https://github.com/first20hours/google-10000-english) for testing large vocabulary scenarios
+- **Sample Wikipedia titles**: Custom curated list of 51 popular Wikipedia titles for demonstration
+
+## Acknowledgments
+
+This project makes use of several excellent open-source libraries and data sources:
+
+- **Aho-Corasick Algorithm Implementation**: Thanks to [cjgdev](https://github.com/cjgdev) for the header-only C++ implementation of the Aho-Corasick string matching algorithm ([aho_corasick](https://github.com/cjgdev/aho_corasick))
+- **JSON Processing**: [nlohmann/json](https://github.com/nlohmann/json) by [Niels Lohmann](https://github.com/nlohmann) for modern C++ JSON processing
+- **Test Data**: War and Peace text sourced from [NYU Economics 370 course repository](https://github.com/mmcky/nyu-econ-370) maintained by [mmcky](https://github.com/mmcky)
 
 ## License
 

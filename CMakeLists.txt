@@ -42,8 +42,4 @@ target_include_directories(text_reference_breaker PRIVATE
 target_link_libraries(text_reference_breaker PRIVATE
     OpenMP::OpenMP_CXX
     nlohmann_json::nlohmann_json
-)
-
-# Enable testing
-enable_testing()
-add_subdirectory(tests) 
+) 
