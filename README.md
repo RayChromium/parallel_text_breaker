@@ -6,6 +6,8 @@ A parallel text processing tool that identifies and annotates Wikipedia referenc
 
 This tool takes a large text file, splits it into 1KB blocks, and automatically identifies semantically meaningful words and phrases by matching them against an offline Wikipedia titles database. It then annotates the text with reference numbers and compiles a "References" section, similar to academic paper citations.
 
+For detailed background and motivation, see the [Project Proposal](RuiCai-Project-proposal.md).
+
 ## Features
 
 - Parallel text processing using the Aho-Corasick algorithm
@@ -16,7 +18,11 @@ This tool takes a large text file, splits it into 1KB blocks, and automatically 
 
 ## Performance Benchmarks
 
-The following tables show performance comparisons between parallel and sequential processing modes using different combinations of Wikipedia title databases and input text files:
+The following tables show performance comparisons between parallel and sequential processing modes using different combinations of Wikipedia title databases and input text files.
+
+**Note**: The tables below show **processing time only** (excluding the title loading phase) to properly compare the parallelized vs sequential performance. The loading phase is sequential in both modes and varies by database size:
+- **Small database (51 titles)**: Loading time ~6-13ms
+- **Large database (10,000 titles)**: Loading time ~66-79ms
 
 ### Small Wikipedia Database (51 titles)
 
@@ -29,21 +35,22 @@ The following tables show performance comparisons between parallel and sequentia
 
 ### Large Wikipedia Database (10,000 titles)
 
-| Input File | Mode | Loading Time | Processing Time | Total Time | Speedup | References Found |
-|------------|------|-------------|----------------|------------|---------|------------------|
-| sample_text.txt (2.2KB) | Sequential | 66.43ms | 1252.71ms | 1319.14ms | - | 3743 |
-| sample_text.txt (2.2KB) | Parallel | 79.42ms | 671.75ms | 751.17ms | **1.76x** | 3743 |
-| book-war-and-peace.txt (3.1MB) | Sequential | ~66ms | 1766.43s | ~29.4 min | - | 5,084,135 |
-| book-war-and-peace.txt (3.1MB) | Parallel | ~79ms | 285.80s | ~4.8 min | **6.18x** | 5,084,135 |
+| Input File | Mode | Processing Time | Speedup | References Found |
+|------------|------|----------------|---------|------------------|
+| sample_text.txt (2.2KB) | Sequential | 1252.71ms | - | 3743 |
+| sample_text.txt (2.2KB) | Parallel | 671.75ms | **1.76x** | 3743 |
+| book-war-and-peace.txt (3.1MB) | Sequential | 1766.43s | - | 5,084,135 |
+| book-war-and-peace.txt (3.1MB) | Parallel | 285.80s | **6.18x** | 5,084,135 |
 
 ### Key Observations
 
 - **Small text files**: Sequential processing is faster due to parallelization overhead
 - **Large text files**: Parallel processing provides significant speedup (6x improvement consistently)
-- **Large databases**: Initialization time becomes significant but processing still benefits from parallelization
+- **Loading time impact**: Large databases (10K titles) take ~12x longer to load than small databases (51 titles), but this is a one-time cost
+- **Processing complexity**: Large databases require ~200x more processing time due to dramatically more pattern matches
 - **Reference density**: Larger databases find dramatically more matches (10K database finds 72x more references than 51-title database in small text, and 26,000x more in large text)
-- **Scalability**: Performance benefits increase with text size - the largest test showed 6.18x speedup (29.4 min vs 4.8 min)
-- **Database impact**: 10K title database processes the same text ~20x slower than 51-title database due to more matches found
+- **Scalability**: Performance benefits increase with text size - the largest test showed 6.18x speedup (29.4 min vs 4.8 min for processing only)
+- **Database impact**: 10K title database processes the same text ~200x slower than 51-title database due to more matches found
 
 ## Requirements
 

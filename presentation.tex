@@ -174,18 +174,31 @@ time ./text_reference_breaker data/wiki_titles.txt large_text.txt result.json
 \begin{frame}{Aho-Corasick Algorithm}
 \begin{columns}
 \begin{column}{0.5\textwidth}
-\textbf{Why Aho-Corasick?}
+%\textbf{Why Aho-Corasick?}
+%\begin{itemize}
+%    \item Multiple pattern matching in single pass
+%    \item Efficient for large pattern sets
+%    \item Immutable trie structure
+%    \item Read-only access enables parallelization
+%\end{itemize}
+
+\vspace{0.3cm}
+\textbf{Time Complexity Analysis:}
+\begin{block}{Construction Phase (Sequential)}
 \begin{itemize}
-    \item Multiple pattern matching in single pass
-    \item Time complexity: O(n + m + z)
-    \begin{itemize}
-        \item n = text length
-        \item m = total pattern length
-        \item z = number of matches
-    \end{itemize}
-    \item Efficient for large pattern sets
-    \item Immutable trie structure
+    \item Build trie and failure links: \( O(m) \)
+    \item Where \( m = \sum_{i=0}^{|P|}|title_i| \) (total pattern length)
+    \item Run once, immutable afterward
 \end{itemize}
+\end{block}
+
+\begin{block}{Search Phase (Parallelizable)}
+\begin{itemize}
+    \item Text traversal: \( O(n + k) \)
+    \item Where \( n \) = text length, \( k \) = number of matches
+    \item Each thread processes independent chunks
+\end{itemize}
+\end{block}
 \end{column}
 \begin{column}{0.5\textwidth}
 \begin{center}
@@ -248,12 +261,10 @@ struct Reference {
     size_t titleIndex;      // Index in Wikipedia titles
     std::string title;      // Matched Wikipedia title
 };
-
 struct ProcessedBlock {
     std::string text;                    // Block content
     std::vector<Reference> references;   // Found references
 };
-
 class TextProcessor {
 private:
     std::unique_ptr<aho_corasick::trie> trie_;
@@ -451,6 +462,7 @@ Dependencies:
     \item \textbf{Compiler}: GCC with C++11 and OpenMP support
     \item \textbf{Wikipedia Databases}: 51 titles vs 10,000 titles
     \item \textbf{Input Texts}: 2.2KB sample vs 3.1MB War and Peace
+    \item \textbf{Note}: Tables show processing time only (loading time: 6-13ms for 51 titles, 66-79ms for 10K titles)
 \end{itemize}
 \end{block}
 
@@ -461,7 +473,7 @@ Dependencies:
 \tiny
 \begin{tabular}{|l|l|r|r|}
 \hline
-\textbf{Input} & \textbf{Mode} & \textbf{Time} & \textbf{Speedup} \\
+\textbf{Input} & \textbf{Mode} & \textbf{Processing Time} & \textbf{Speedup} \\
 \hline
 2.2KB & Sequential & 5.64ms & - \\
 2.2KB & Parallel & 13.95ms & 0.40x \\
@@ -478,13 +490,13 @@ Dependencies:
 \tiny
 \begin{tabular}{|l|l|r|r|}
 \hline
-\textbf{Input} & \textbf{Mode} & \textbf{Time} & \textbf{Speedup} \\
+\textbf{Input} & \textbf{Mode} & \textbf{Processing Time} & \textbf{Speedup} \\
 \hline
-2.2KB & Sequential & 1319.14ms & - \\
-2.2KB & Parallel & 751.17ms & \textbf{1.76x} \\
+2.2KB & Sequential & 1252.71ms & - \\
+2.2KB & Parallel & 671.75ms & \textbf{1.76x} \\
 \hline
-3.1MB & Sequential & 29.4 min & - \\
-3.1MB & Parallel & 4.8 min & \textbf{6.18x} \\
+3.1MB & Sequential & 1766.43s & - \\
+3.1MB & Parallel & 285.80s & \textbf{6.18x} \\
 \hline
 \end{tabular}
 \end{table}
@@ -499,35 +511,63 @@ Dependencies:
 \begin{itemize}
     \item \textbf{Small files}: Sequential faster (overhead dominates)
     \item \textbf{Large files}: Parallel provides 6x speedup consistently
-    \item \textbf{Database scaling}: 10K titles vs 51 titles dramatically increases matches
-    \item \textbf{Extreme scaling}: 29.4 min → 4.8 min for largest test (6.18x speedup)
-\end{itemize}
-
-\vspace{0.3cm}
-\textbf{Reference Density Impact:}
-\begin{itemize}
-    \item Small text: 52 refs (51 titles) vs 3743 refs (10K titles)
-    \item Large text: 193 refs (51 titles) vs 5M+ refs (10K titles)
-    \item Database size directly correlates with processing time
+    \item \textbf{Loading overhead}: 10K titles take ~12x longer to load than 51 titles (66-79ms vs 6-13ms)
+    \item \textbf{Processing complexity}: Large databases require ~200x more processing time due to more matches
+    \item \textbf{Extreme scaling}: 1766s → 286s for largest test (6.18x speedup)
 \end{itemize}
 \end{column}
+
 \begin{column}{0.5\textwidth}
 \textbf{Scalability Analysis:}
 \begin{itemize}
     \item \textbf{Consistent speedup}: ~6x for large texts regardless of database size
     \item \textbf{Amdahl's Law}: Parallel portion dominates for large texts
+    \item \textbf{Loading vs Processing}: Loading is one-time cost, processing scales with text size
     \item \textbf{Memory bandwidth}: Limits not reached even with 5M+ references
     \item \textbf{I/O impact}: Minimal compared to processing time
 \end{itemize}
+\end{column}
+\end{columns}
+\end{frame}
 
-\vspace{0.3cm}
-\textbf{Production Recommendations:}
+\begin{frame}{Why Not Use Full Wikipedia Title Dump?}
+\begin{block}{Scale Challenge}
 \begin{itemize}
-    \item Use parallel mode for files > 100KB
-    \item Cache loaded databases for multiple files
-    \item Expect 6x speedup for large files
-    \item Balance database size vs accuracy needs
+    \item \textbf{Full Wikipedia dump}: 100MB+ title file
+    \item \textbf{Current testing}: 51 titles (445 bytes) vs 10,000 titles (3.2MB)
+    \item \textbf{Estimated full dump}: ~300,000-350,000 titles (30-35x larger than 10K)
+    \item \textbf{Time complexity}: Construction O(m), Search O(n + k)
 \end{itemize}
+\end{block}
+\end{frame}
+
+\begin{frame}{Why Not Use Full Wikipedia Title Dump?}
+\begin{columns}
+\begin{column}{0.5\textwidth}
+\textbf{Extrapolated Performance:}
+\begin{itemize}
+    \item \textbf{Loading time estimate}: 
+    \begin{itemize}
+        \item 10K titles: ~70ms
+        \item 300K titles: ~2-3 seconds
+    \end{itemize}
+    \item \textbf{Processing time estimate}:
+    \begin{itemize}
+        \item War \& Peace (3.1MB text)
+        \item Sequential: ~12-15 hours
+        \item Parallel: ~2-2.5 hours
+    \end{itemize}
+\end{itemize}
+\end{column}
+\begin{column}{0.5\textwidth}
+\textbf{Practical Considerations:}
+\begin{itemize}
+    \item \textbf{Memory usage}: 100MB+ trie structure
+    \item \textbf{Reference density}: 100M+ matches expected
+    \item \textbf{Diminishing returns}: Over-annotation problem
+    \item \textbf{Development focus}: Algorithm optimization vs data scale
+\end{itemize}
+
 \end{column}
 \end{columns}
 \end{frame}
@@ -631,7 +671,7 @@ Dependencies:
 
 \vspace{1cm}
 \normalsize
-\textbf{Project Repository:} \texttt{github.com/yourusername/text\_reference\_breaker}
+\textbf{Project Repository:} \texttt{github.com/RayChromium/parallel\_text\_breaker}
 
 \textbf{Technologies Used:} C++11, OpenMP, Aho-Corasick, CMake
 
